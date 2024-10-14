@@ -1,11 +1,8 @@
-import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/components/build_quote_container.dart';
-import 'package:flutter_application_1/models/quotes.dart';
-import 'package:http/http.dart' as http;
-import 'package:permission_handler/permission_handler.dart';
-import 'package:photo_manager/photo_manager.dart';
+import 'package:flutter_application_1/services/image_service.dart';
+import 'package:flutter_application_1/services/quotes_services.dart';
 import 'package:screenshot/screenshot.dart';
 
 class HomePage extends StatefulWidget {
@@ -19,38 +16,37 @@ class _HomePageState extends State<HomePage> {
   late Uint8List imageFile;
   ScreenshotController screenshotController = ScreenshotController();
 
-  Future<Quote> fetchQuotes() async {
-    final response =
-        await http.get(Uri.parse("https://zenquotes.io/api/random"));
+  final QuotesService quoteService = QuotesService();
+  final ImageService imageService = ImageService();
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
+  Future<void> saveScreenshot() async {
+    final image = await screenshotController.capture();
+    if (image == null) return;
 
-      return Quote.fromJson(data[0]);
+    final path = await imageService.saveImage(image);
+    if (path != null) {
+      showSuccessMessage("Image successfully saved at $path");
     } else {
-      throw Exception("Failed to fetch joke");
+      showErrorMessage("Failed to save image");
     }
   }
 
-  Future<String?> saveImage(Uint8List bytes) async {
-    // Request storage permission
-    await [Permission.storage].request();
+  void showSuccessMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.green,
+        content: Text(message),
+      ),
+    );
+  }
 
-    // Generate a unique name for the image
-    String name = "quotes${DateTime.now().millisecondsSinceEpoch}";
-
-    // Save the image
-    AssetEntity? result =
-        await PhotoManager.editor.saveImage(bytes, filename: name);
-
-    // Check if the result is not null and return the file path
-    if (result != null) {
-      // Retrieve the file path of the saved image
-      final file = await result.file;
-      return file?.path; // Return the file path
-    } else {
-      return null; // Return null if saving failed
-    }
+  void showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.red,
+        content: Text(message),
+      ),
+    );
   }
 
   final GlobalKey widgetKey = GlobalKey();
@@ -64,9 +60,8 @@ class _HomePageState extends State<HomePage> {
           actions: [
             IconButton(
               onPressed: () async {
-                setState(() {
-                  fetchQuotes();
-                });
+                await quoteService.fetchRandomQuotes();
+                setState(() {});
               },
               icon: const Icon(
                 Icons.refresh,
@@ -74,9 +69,7 @@ class _HomePageState extends State<HomePage> {
             ),
             IconButton(
               onPressed: () async {
-                final image = await screenshotController.capture();
-                if (image == null) return;
-                await saveImage(image);
+                saveScreenshot();
               },
               icon: const Icon(
                 Icons.download,
@@ -85,7 +78,7 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         body: FutureBuilder(
-          future: fetchQuotes(),
+          future: quoteService.fetchRandomQuotes(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
