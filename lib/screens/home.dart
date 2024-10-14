@@ -4,6 +4,7 @@ import 'package:flutter_application_1/components/build_quote_container.dart';
 import 'package:flutter_application_1/services/image_service.dart';
 import 'package:flutter_application_1/services/quotes_services.dart';
 import 'package:screenshot/screenshot.dart';
+import 'package:share_plus/share_plus.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,15 +20,17 @@ class _HomePageState extends State<HomePage> {
   final QuotesService quoteService = QuotesService();
   final ImageService imageService = ImageService();
 
-  Future<void> saveScreenshot() async {
+  Future<String?> saveScreenshot() async {
     final image = await screenshotController.capture();
-    if (image == null) return;
+    if (image == null) return null;
 
     final path = await imageService.saveImage(image);
     if (path != null) {
       showSuccessMessage("Image successfully saved at $path");
+      return path;
     } else {
       showErrorMessage("Failed to save image");
+      return null;
     }
   }
 
@@ -47,6 +50,19 @@ class _HomePageState extends State<HomePage> {
         content: Text(message),
       ),
     );
+  }
+
+  Future<void> shareScreenshot() async {
+    final path = await saveScreenshot();
+    if (path != null) {
+      // Share the image using its file path
+      await Share.shareXFiles(
+        [XFile(path)],
+        text: 'Check out this awesome quote!',
+      );
+    } else {
+      showErrorMessage("Failed to capture screenshot for sharing");
+    }
   }
 
   final GlobalKey widgetKey = GlobalKey();
@@ -73,6 +89,14 @@ class _HomePageState extends State<HomePage> {
               },
               icon: const Icon(
                 Icons.download,
+              ),
+            ),
+            IconButton(
+              onPressed: () async {
+                await shareScreenshot();
+              },
+              icon: const Icon(
+                Icons.share,
               ),
             ),
           ],
